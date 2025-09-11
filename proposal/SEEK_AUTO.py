@@ -611,7 +611,7 @@ class ResumeGenerator:
 if __name__ == "__main__":
     # Define paths
     output_directory = r"E:\1landing\resume\UPDATED"
-    pdf_filename = "Rachit_Enhanced_Resume.pdf"
+    pdf_filename = "Valentino_Resume.pdf"
     template_filename = "resume_template.json"
     
     pdf_path = os.path.join(output_directory, pdf_filename)
