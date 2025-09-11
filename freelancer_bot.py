@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import time
@@ -5,9 +6,9 @@ from datetime import datetime
 import google.generativeai as genai
 
 # Configuration
-ACCESS_TOKEN = ""
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 BASE_URL = "https://www.freelancer.com/api"
-GOOGLE_API_KEY = "AIzaSyDmipzIwjethZEEPOQFZG0edrBsTTDImr0"
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
