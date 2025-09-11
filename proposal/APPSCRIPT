@@ -1,0 +1,41 @@
+function extractJobApplications() {
+  const sheet = SpreadsheetApp.openById("SHEET ID CAN BE FOUND IN URL OF SHEET ").getSheetByName("Sheet1");
+
+  // Clear any existing data in the sheet and set headers
+  sheet.clear(); // Clears the existing data on the sheet
+  sheet.getRange(1, 1, 1, 4).setValues([["Date Applied", "Job Title", "Company Name", "Email Link"]]);
+
+  const label = GmailApp.getUserLabelByName("Job Application"); // Label name in Gmail
+  const threads = label.getThreads(); // Get all email threads with the label
+  let row = 2; // Start from the second row for data
+
+  threads.forEach(thread => {
+    const messages = thread.getMessages(); // Get messages in each thread
+    messages.forEach(message => {
+      const emailBody = message.getBody(); // Extract the email body
+      let dateApplied = message.getDate(); // Get the date the email was sent
+      const messageId = message.getId(); // Get the unique ID for the email message
+      const emailLink = `https://mail.google.com/mail/u/0/#inbox/${messageId}`; // Generate the email link
+
+      // Format the date as DD/MM/YYYY
+      const day = String(dateApplied.getDate()).padStart(2, '0');
+      const month = String(dateApplied.getMonth() + 1).padStart(2, '0'); // getMonth() is zero-based
+      const year = dateApplied.getFullYear();
+      dateApplied = `${day}/${month}/${year}`;
+
+      // Extract job title and company name with error handling, and remove HTML tags
+      const jobTitleMatch = emailBody.match(/application for ([\s\S]+?) has been sent/);
+      const companyNameMatch = emailBody.match(/has been sent to ([\s\S]+?)\./);
+
+      const jobTitle = jobTitleMatch ? jobTitleMatch[1].replace(/<[^>]*>/g, '') : "Unknown Job Title"; // Remove HTML tags
+      const companyName = companyNameMatch ? companyNameMatch[1].replace(/<[^>]*>/g, '') : "Unknown Company"; // Remove HTML tags
+
+      // Insert extracted data into the sheet
+      sheet.getRange(row, 1, 1, 4).setValues([[dateApplied, jobTitle, companyName, emailLink]]);
+      row++; // Move to the next row
+    });
+  });
+
+  SpreadsheetApp.flush(); // Ensure all changes are saved
+  Logger.log("Data extraction complete.");
+}
