@@ -1239,8 +1239,12 @@ async def get_glassdoor_jobs(keywords, location=None):
             # Navigate to search page
             await page.goto(search_url, {'waitUntil': 'networkidle2', 'timeout': 100000})
             
-            await page.waitForSelector('.JobsList_jobsList__lqjTr, .react-job-listing, .jobContainer, [data-test="job-listing"]', {'timeout': 15000})
-            
+            await page.waitForSelector(
+                "[class*='JobsList_jobsList__'], .react-job-listing, .jobContainer, [data-test='job-listing']",
+                timeout=30000
+            )
+
+
             # Random delay to simulate human behavior
             await page.waitFor(random.randint(2000, 4000))
             
@@ -1251,14 +1255,14 @@ async def get_glassdoor_jobs(keywords, location=None):
                 let jobElements = [];
                 
                 // Primary selector for new Glassdoor structure
-                const jobListItems = document.querySelectorAll('.JobsList_jobListItem__wjTHv');
+                const jobListItems = document.querySelectorAll('[class*="JobsList_jobListItem__"]');
                 if (jobListItems.length > 0) {
                     // Filter out non-job items (like carousel cards, nudge cards, etc.)
                     jobElements = Array.from(jobListItems).filter(item => {
-                        return item.querySelector('.JobCard_jobCardWrapper__vX29z') && 
+                        return item.querySelector('[class*="JobCard_jobCardWrapper__"]') &&
                             item.querySelector('[data-test="job-title"]') &&
-                            !item.classList.contains('ProfileAttributesCarousel_carouselWrapper__Zss2X') &&
-                            !item.classList.contains('ForYouNudgeCard_cardWrapper__bkg9g');
+                            !item.matches('[class*="ProfileAttributesCarousel_carouselWrapper__"]') &&
+                            !item.matches('[class*="ForYouNudgeCard_cardWrapper__"]');
                     });
                 }
                 
@@ -1268,7 +1272,7 @@ async def get_glassdoor_jobs(keywords, location=None):
                         '.react-job-listing',
                         '.jobContainer',
                         '[data-test="job-listing"]',
-                        '.job-search-key-1vjw6b8'
+                        '[class*="job-search-key-"]'
                     ];
                     
                     for (const selector of fallbackSelectors) {
@@ -1279,12 +1283,12 @@ async def get_glassdoor_jobs(keywords, location=None):
                         }
                     }
                 }
-                
+
                 // Extract job data from first 20 jobs
                 jobElements.slice(0, 20).forEach(job => {
                     try {
                         // Extract job title and link
-                        let titleElement = job.querySelector('.JobCard_jobTitle__GLyJ1');
+                        let titleElement = job.querySelector('[class*="JobCard_jobTitle__"]');
                         if (!titleElement) {
                             // Fallback selectors
                             const titleSelectors = [
@@ -1293,21 +1297,20 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 'h2 a',
                                 '.job-title a'
                             ];
-                            
                             for (const selector of titleSelectors) {
                                 titleElement = job.querySelector(selector);
                                 if (titleElement) break;
                             }
                         }
-                        
+
                         if (!titleElement) return; // Skip if no title found
-                        
+
                         const title = titleElement.textContent.trim();
                         const link = titleElement.href || '';
-                        
+
                         // Extract company name
                         let company = 'Company not specified';
-                        const companyElement = job.querySelector('.EmployerProfile_compactEmployerName__9MGcV');
+                        const companyElement = job.querySelector('[class*="EmployerProfile_compactEmployerName__"]');
                         if (companyElement) {
                             company = companyElement.textContent.trim();
                         } else {
@@ -1318,7 +1321,6 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 '.companyName',
                                 '.employer-name'
                             ];
-                            
                             for (const selector of companySelectors) {
                                 const fallbackElement = job.querySelector(selector);
                                 if (fallbackElement) {
@@ -1327,21 +1329,19 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 }
                             }
                         }
-                        
+
                         // Extract location
                         let jobLocation = 'Location not specified';
-                        const locationElement = job.querySelector('.JobCard_location__Ds1fM');
+                        const locationElement = job.querySelector('[class*="JobCard_location__"]');
                         if (locationElement) {
                             jobLocation = locationElement.textContent.trim();
                         } else {
-                            // Fallback selectors
                             const locationSelectors = [
                                 '[data-test="job-location"]',
                                 '[data-test="emp-location"]',
                                 '.location',
                                 '.jobLocation'
                             ];
-                            
                             for (const selector of locationSelectors) {
                                 const fallbackElement = job.querySelector(selector);
                                 if (fallbackElement) {
@@ -1350,22 +1350,19 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 }
                             }
                         }
-                        
+
                         // Extract salary
                         let salary = 'Salary not specified';
-                        const salaryElement = job.querySelector('.JobCard_salaryEstimate__QpbTW');
+                        const salaryElement = job.querySelector('[class*="JobCard_salaryEstimate__"]');
                         if (salaryElement) {
                             salary = salaryElement.textContent.trim();
-                            // Clean up salary text (remove extra whitespace and spans)
-                            salary = salary.replace(/\\s+/g, ' ').replace(/\$$.*?\$$/g, '').trim();
+                            salary = salary.replace(/\s+/g, ' ').trim();
                         } else {
-                            // Fallback selectors
                             const salarySelectors = [
                                 '[data-test="detailSalary"]',
                                 '.salary',
                                 '.salaryText'
                             ];
-                            
                             for (const selector of salarySelectors) {
                                 const fallbackElement = job.querySelector(selector);
                                 if (fallbackElement) {
@@ -1374,24 +1371,25 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 }
                             }
                         }
-                        
+
                         // Extract job age/posting date
                         let jobAge = '';
-                        const ageElement = job.querySelector('.JobCard_listingAge__jJsuc');
+                        const ageElement = job.querySelector('[class*="JobCard_listingAge__"]');
                         if (ageElement) {
                             jobAge = ageElement.textContent.trim();
                         }
-                        
-                        // Extract company rating if available
+
+                        // Extract company rating
                         let rating = '';
-                        const ratingElement = job.querySelector('.rating-single-star_RatingText__XENmU');
+                        const ratingElement = job.querySelector('[class*="rating-single-star_RatingText__"]');
                         if (ratingElement) {
                             rating = ratingElement.textContent.trim();
                         }
-                        
+
                         // Check for Easy Apply
-                        const easyApply = job.querySelector('.JobCard_easyApplyTag__5vlo5') ? 'Yes' : 'No';
-                        
+                        const easyApply = job.querySelector('[class*="JobCard_easyApplyTag__"]') ? 'Yes' : 'No';
+
+                        // Push job data
                         if (title && title !== '') {
                             const jobData = {
                                 title: title,
@@ -1401,23 +1399,23 @@ async def get_glassdoor_jobs(keywords, location=None):
                                 link: link.startsWith('http') ? link : `https://www.glassdoor.com${link}`,
                                 platform: 'Glassdoor'
                             };
-                            
-                            // Add optional fields if available
+
                             if (jobAge) jobData.posted = jobAge;
                             if (rating) jobData.company_rating = rating;
                             if (easyApply === 'Yes') jobData.easy_apply = true;
-                            
+
                             jobs.push(jobData);
                         }
                     } catch (error) {
                         console.log('Error extracting job data:', error);
                     }
                 });
-                
+
                 return jobs;
+
             }''')
         
-        await browser.close()
+            await browser.close()
         
         print(f"Successfully scraped {len(jobs_data)} jobs from Glassdoor")
         return jobs_data
@@ -1887,11 +1885,11 @@ all_jobs = {
     #     'link': 'https://www.upwork.com',
     #     'description': 'Professional freelancing platform'
     # },
-    'fiverr': {
-        'jobs': get_fiverr_jobs,
-        'link': 'https://www.fiverr.com',
-        'description': 'Marketplace for digital services and gigs'
-    },
+    # 'fiverr': {
+    #     'jobs': get_fiverr_jobs,
+    #     'link': 'https://www.fiverr.com',
+    #     'description': 'Marketplace for digital services and gigs'
+    # },
     'indeed': {
         'jobs': get_indeed_jobs,
         'link': 'https://www.indeed.com',

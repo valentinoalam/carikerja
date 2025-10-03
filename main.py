@@ -39,11 +39,18 @@ def display_results(jobs, company, base_link):
         print()
 
 def save_results_to_file(all_results, job_keys, location):
-    df = pd.DataFrame(all_results)
+    flat_jobs = []
+    for company, jobs in all_results.items():
+        for job in jobs:
+            job['platform'] = company
+            flat_jobs.append(job)
 
-    # حفظ النتائج في ملف CSV
+    if not flat_jobs:
+        print("No results to save.")
+        return
+
+    df = pd.DataFrame(flat_jobs)
     df.to_csv(f'{job_keys}_jobs.csv', index=False)
-
     print(f"Links with dates saved in file {job_keys}_jobs.csv")
 
     """Save job search results to a text file with formatted output"""
