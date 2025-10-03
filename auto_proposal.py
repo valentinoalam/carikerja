@@ -3,6 +3,7 @@ import json
 import re
 from datetime import datetime
 from typing import Dict, List, Any
+import striprtf.striprtf as rtf
 
 class ProposalGenerator:
     def __init__(self):
@@ -30,6 +31,16 @@ class ProposalGenerator:
                 'screening_required': True,
                 'key_sections': ['expertise', 'problem_solving', 'methodology', 'results'],
                 'tone': 'expert'
+            },
+            'linkedin': {
+                'max_proposal_length': 1200,
+                'key_sections': ['introduction', 'understanding', 'solution', 'experience', 'closing'],
+                'tone': 'professional'
+            },
+            'indeed': {
+                'max_proposal_length': 1000,
+                'key_sections': ['introduction', 'qualifications', 'experience', 'closing'],
+                'tone': 'professional'
             }
         }
         
@@ -168,6 +179,7 @@ class ProposalGenerator:
             'job_id': job.get('link', ''),
             'job_title': job.get('title', ''),
             'platform': platform,
+            'company': job.get('company', ''),
             'proposal': full_proposal,
             'estimated_time': self.estimate_project_time(requirements),
             'suggested_rate': self.suggest_rate(requirements, user_profile),
@@ -179,54 +191,72 @@ class ProposalGenerator:
         """Create individual sections of the proposal"""
         sections = {}
         
-        # Introduction/Greeting
+        # Get company name for personalization
+        company_name = job.get('company', 'the company')
+        job_title = job.get('title', 'project')
+        
+        # Introduction/Greeting - Personalized with company name
         if config['tone'] == 'professional':
-            sections['introduction'] = f"Dear Hiring Manager,\n\nI am excited to submit my proposal for your {job.get('title', 'project')}."
+            sections['introduction'] = f"Dear Hiring Manager at {company_name},\n\nI am excited to submit my proposal for your {job_title} position."
         elif config['tone'] == 'friendly':
-            sections['introduction'] = f"Hi there! 👋\n\nI'd love to help you with your {job.get('title', 'project')}!"
+            sections['introduction'] = f"Hi {company_name} team! 👋\n\nI'd love to help you with your {job_title} project!"
         else:
-            sections['introduction'] = f"Hello,\n\nI'm interested in your {job.get('title', 'project')} and believe I'm the right fit."
+            sections['introduction'] = f"Hello {company_name} team,\n\nI'm interested in your {job_title} and believe I'm the right fit."
         
-        # Understanding/Problem Analysis
-        sections['understanding'] = f"I understand you need {', '.join(skill_template['deliverables'][:2])}. "
+        # Understanding/Problem Analysis - Tailored to job description
+        job_description = job.get('description', '')
+        if 'urgent' in job_description.lower():
+            urgency_note = "I understand this is time-sensitive and can prioritize accordingly."
+        else:
+            urgency_note = ""
+            
+        sections['understanding'] = f"I've reviewed your requirements and understand you need {', '.join(skill_template['deliverables'][:2])}. {urgency_note}"
         if requirements['complexity'] == 'Complex':
-            sections['understanding'] += "This appears to be a comprehensive project requiring attention to detail and advanced technical skills."
+            sections['understanding'] += " This appears to be a comprehensive project requiring attention to detail and advanced technical skills."
         else:
-            sections['understanding'] += "This project aligns perfectly with my expertise and experience."
+            sections['understanding'] += " This project aligns perfectly with my expertise and experience."
         
-        # Solution/Approach
-        sections['approach'] = f"My approach will include:\n"
-        sections['approach'] += f"• Utilizing {', '.join(skill_template['technologies'][:3])}\n"
-        sections['approach'] += f"• Ensuring {', '.join(skill_template['keywords'][:2])} results\n"
-        sections['approach'] += f"• Delivering {', '.join(skill_template['deliverables'][:2])}"
+        # Solution/Approach - Customized based on job requirements
+        sections['approach'] = f"My approach to your {job_title} will include:\n"
+        sections['approach'] += f"• Utilizing {', '.join(skill_template['technologies'][:3])} for optimal results\n"
+        sections['approach'] += f"• Ensuring {', '.join(skill_template['keywords'][:2])} outcomes\n"
+        sections['approach'] += f"• Delivering {', '.join(skill_template['deliverables'][:2])}\n"
         
-        # Experience
+        # Add specific solutions based on job description keywords
+        if 'responsive' in job_description.lower():
+            sections['approach'] += "• Implementing fully responsive design for all devices\n"
+        if 'scalable' in job_description.lower():
+            sections['approach'] += "• Building scalable architecture for future growth\n"
+        if 'api' in job_description.lower():
+            sections['approach'] += "• Developing robust API integrations\n"
+        
+        # Experience - Personalized with years and relevant skills
         experience_years = user_profile.get('experience_years', 3)
         sections['experience'] = f"With {experience_years}+ years of experience in {requirements['skill_category']}, "
-        sections['experience'] += f"I have successfully completed similar projects using {', '.join(skill_template['technologies'][:2])}."
+        sections['experience'] += f"I have successfully completed similar projects for companies like yours using {', '.join(skill_template['technologies'][:2])}."
         
         # Timeline
         if requirements['timeline'] == 'Urgent':
-            sections['timeline'] = "I understand this is urgent and can start immediately with daily updates."
+            sections['timeline'] = f"I understand this is urgent for {company_name} and can start immediately with daily updates to ensure timely delivery."
         else:
-            sections['timeline'] = f"I can complete this project within {self.estimate_project_time(requirements)} with regular progress updates."
+            sections['timeline'] = f"I can complete this {job_title} within {self.estimate_project_time(requirements)} with regular progress updates for the {company_name} team."
         
         # Portfolio/Examples
-        sections['portfolio'] = "I'd be happy to share relevant portfolio examples that demonstrate my expertise in this area."
+        sections['portfolio'] = f"I'd be happy to share relevant portfolio examples that demonstrate my expertise in {requirements['skill_category']}, specifically tailored to {company_name}'s needs."
         
-        # Closing
+        # Closing - Personalized
         if config['tone'] == 'friendly':
-            sections['closing'] = "Looking forward to working together! Feel free to message me with any questions. 😊"
+            sections['closing'] = f"Looking forward to the opportunity to work with {company_name}! Feel free to message me with any questions. 😊"
         else:
-            sections['closing'] = "I look forward to discussing this project further. Thank you for your consideration."
+            sections['closing'] = f"I look forward to discussing how I can contribute to {company_name}'s success. Thank you for your consideration."
         
         # Key selling points
         sections['key_points'] = [
-            f"{experience_years}+ years experience",
-            f"Expert in {requirements['skill_category']}",
-            "100% job success rate",
-            "Quick response time",
-            "Quality guaranteed"
+            f"{experience_years}+ years experience in {requirements['skill_category']}",
+            f"Expert in technologies mentioned in your job description",
+            "Proven track record with similar companies",
+            "Quick response time and clear communication",
+            "Quality-focused approach with attention to detail"
         ]
         
         return sections
@@ -287,7 +317,7 @@ class ProposalGenerator:
         }
 
     def save_proposals(self, proposals: List[Dict], output_dir: str = 'proposals'):
-        """Save generated proposals to files"""
+        """Save generated proposals to text files"""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
@@ -297,11 +327,13 @@ class ProposalGenerator:
         for i, proposal in enumerate(proposals):
             platform = proposal['platform']
             job_title = re.sub(r'[^\w\s-]', '', proposal['job_title'])[:50]
-            filename = f"{platform}_{job_title}_{timestamp}_{i+1}.txt"
+            company = re.sub(r'[^\w\s-]', '', proposal.get('company', 'Unknown'))[:30]
+            filename = f"{platform}_{company}_{job_title}_{timestamp}_{i+1}.txt"
             filepath = os.path.join(output_dir, filename)
             
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(f"PROPOSAL FOR: {proposal['job_title']}\n")
+                f.write(f"COMPANY: {proposal.get('company', 'Not specified')}\n")
                 f.write(f"PLATFORM: {proposal['platform'].upper()}\n")
                 f.write(f"ESTIMATED TIME: {proposal['estimated_time']}\n")
                 f.write(f"SUGGESTED RATE: ${proposal['suggested_rate']['hourly_rate']}/hr\n")
@@ -340,11 +372,72 @@ class ProposalGenerator:
             for i, proposal in enumerate(proposals):
                 platform = proposal['platform']
                 job_title = re.sub(r'[^\w\s-]', '', proposal['job_title'])[:50]
-                filename = f"{platform}_{job_title}_{timestamp}_{i+1}.txt"
+                company = re.sub(r'[^\w\s-]', '', proposal.get('company', 'Unknown'))[:30]
+                filename = f"{platform}_{company}_{job_title}_{timestamp}_{i+1}.txt"
                 f.write(f"• {filename}\n")
         
-        print(f"✅ Generated {len(proposals)} proposals in '{output_dir}' directory")
+        print(f"✅ Generated {len(proposals)} text proposals in '{output_dir}' directory")
         print(f"📄 Summary report: {summary_file}")
+
+    def save_proposals_to_rtf(self, proposals: List[Dict], output_dir: str = 'proposals_rtf'):
+        """Save generated proposals to RTF files"""
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        for i, proposal in enumerate(proposals):
+            platform = proposal['platform']
+            job_title = re.sub(r'[^\w\s-]', '', proposal['job_title'])[:50]
+            company = re.sub(r'[^\w\s-]', '', proposal.get('company', 'Unknown'))[:30]
+            filename = f"{platform}_{company}_{job_title}_{timestamp}_{i+1}.rtf"
+            filepath = os.path.join(output_dir, filename)
+            
+            # Create RTF content
+            rtf_content = self._create_rtf_content(proposal)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(rtf_content)
+        
+        print(f"✅ Generated {len(proposals)} RTF proposals in '{output_dir}' directory")
+
+    def _create_rtf_content(self, proposal: Dict) -> str:
+        """Create RTF formatted content for a proposal"""
+        rtf_header = r"""{\rtf1\ansi\deff0 {\fonttbl {\f0 Times New Roman;}}
+        \f0\fs24 """
+        
+        # Header section
+        header = f"""
+        \\b PROPOSAL FOR: {proposal['job_title']}\\b0\\par
+        COMPANY: {proposal.get('company', 'Not specified')}\\par
+        PLATFORM: {proposal['platform'].upper()}\\par
+        ESTIMATED TIME: {proposal['estimated_time']}\\par
+        SUGGESTED RATE: ${proposal['suggested_rate']['hourly_rate']}/hr\\par
+        PROJECT TOTAL: ${proposal['suggested_rate']['project_total']}\\par
+        \\line\\par
+        """
+        
+        # Proposal content
+        proposal_content = proposal['proposal'].replace('\n', '\\par ') + '\\par\\par'
+        
+        # Key points section
+        key_points = "\\b KEY POINTS TO HIGHLIGHT:\\b0\\par"
+        for point in proposal['key_points']:
+            key_points += f"• {point}\\par"
+        
+        key_points += "\\par\\line\\par"
+        
+        # Requirements analysis
+        requirements = "\\b REQUIREMENTS ANALYSIS:\\b0\\par"
+        requirements += f"Budget: {proposal['requirements_analysis']['budget']}\\par"
+        requirements += f"Timeline: {proposal['requirements_analysis']['timeline']}\\par"
+        requirements += f"Complexity: {proposal['requirements_analysis']['complexity']}\\par"
+        requirements += f"Category: {proposal['requirements_analysis']['skill_category']}\\par"
+        
+        # Combine all sections
+        full_rtf = rtf_header + header + proposal_content + key_points + requirements + "}"
+        
+        return full_rtf
 
 def main():
     """Main function to generate proposals for compiled jobs"""
@@ -382,34 +475,37 @@ def main():
     
     if choice == "2":
         platforms = list(set(job.get('platform', '').lower() for job in jobs))
-        print(f"Available platforms: {', '.join(platforms)}")
+        print("\nAvailable platforms:", ', '.join(platforms))
         selected_platform = input("Enter platform name: ").lower()
         filtered_jobs = [job for job in jobs if job.get('platform', '').lower() == selected_platform]
     
     elif choice == "3":
-        categories = ['web development', 'mobile development', 'data science', 'graphic design', 'writing', 'marketing']
-        print(f"Available categories: {', '.join(categories)}")
+        categories = list(set(generator.identify_skill_category(job.get('title', '') + ' ' + job.get('description', '')) for job in jobs))
+        print("\nAvailable categories:", ', '.join(categories))
         selected_category = input("Enter category: ").lower()
-        filtered_jobs = [job for job in jobs if generator.identify_skill_category(
-            job.get('title', '') + ' ' + job.get('skills', '')) == selected_category]
+        filtered_jobs = [job for job in jobs if generator.identify_skill_category(job.get('title', '') + ' ' + job.get('description', '')) == selected_category]
     
     elif choice == "4":
-        print("Complexity levels: Simple, Medium, Complex")
-        selected_complexity = input("Enter complexity: ").title()
-        filtered_jobs = [job for job in jobs if generator.assess_complexity(
-            job.get('description', ''), job.get('title', '')) == selected_complexity]
+        complexities = ['Simple', 'Medium', 'Complex']
+        print("\nAvailable complexities:", ', '.join(complexities))
+        selected_complexity = input("Enter complexity: ").capitalize()
+        filtered_jobs = [job for job in jobs if generator.assess_complexity(job.get('description', ''), job.get('title', '')) == selected_complexity]
     
-    print(f"\n🎯 Processing {len(filtered_jobs)} filtered jobs...")
+    print(f"\n🎯 Generating proposals for {len(filtered_jobs)} jobs...")
     
     # Generate proposals
     proposals = []
     for i, job in enumerate(filtered_jobs, 1):
-        print(f"Generating proposal {i}/{len(filtered_jobs)}: {job.get('title', 'Unknown')[:50]}...")
+        print(f"📝 Generating proposal {i}/{len(filtered_jobs)}: {job.get('title', 'Unknown')[:50]}...")
         proposal = generator.generate_proposal(job, user_profile)
         proposals.append(proposal)
     
     # Save proposals
     generator.save_proposals(proposals)
+    generator.save_proposals_to_rtf(proposals)
+    
+    print(f"\n✅ Successfully generated {len(proposals)} proposals!")
+    print("📁 Check the 'proposals' and 'proposals_rtf' folders for your files.")
     
     print(f"\n✅ Successfully generated {len(proposals)} proposals!")
     print("📁 Check the 'proposals' directory for your customized proposals.")

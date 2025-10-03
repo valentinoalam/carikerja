@@ -1,370 +1,615 @@
-from datetime import datetime
-from string import Template
+import os
+import json
 import re
-from typing import Dict, Any, Optional
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
+from datetime import datetime
+from typing import Dict, List, Any
+import striprtf.striprtf as rtf
 
 class CoverLetterGenerator:
-    """
-    A comprehensive cover letter generator that creates personalized cover letters
-    based on vacancy details, user data, and customizable templates.
-    """
-    
     def __init__(self):
-        self.templates = {
-            'professional': """Dear $hiring_manager,
-
-I am writing to express my strong interest in the $position_title position at $company_name. With $years_experience years of experience in $field and a proven track record of $key_achievement, I am confident that I would be a valuable addition to your team.
-
-In my previous role as $previous_position at $previous_company, I successfully $major_accomplishment. My expertise in $key_skills aligns perfectly with the requirements outlined in your job posting, particularly your need for someone with $required_skill experience.
-
-What excites me most about this opportunity at $company_name is $company_interest. I am particularly drawn to $specific_interest and believe my background in $relevant_background would contribute significantly to your team's success.
-
-I would welcome the opportunity to discuss how my experience and passion for $industry can benefit $company_name. Thank you for considering my application.
-
-Sincerely,
-$full_name""",
-
-            'creative': """Hello $hiring_manager,
-
-When I discovered the $position_title opening at $company_name, I knew I had found my next career adventure! With $years_experience years of experience turning $challenge_area into opportunities, I'm excited to bring my unique blend of $skill_combination to your innovative team.
-
-At $previous_company, I didn't just $previous_responsibility – I $creative_achievement. This experience taught me that $lesson_learned, a philosophy that aligns perfectly with $company_name's commitment to $company_value.
-
-What truly resonates with me about this role is $personal_connection. Your recent $company_news caught my attention because $why_interested. I'm eager to contribute my expertise in $expertise_area while growing alongside a team that values $team_value.
-
-I'd love to chat more about how my unconventional approach to $approach_area could add fresh perspective to your $department team. 
-
-Looking forward to connecting,
-$full_name""",
-
-            'technical': """Dear $hiring_manager,
-
-I am applying for the $position_title position at $company_name, as advertised on $job_source. With $years_experience years of hands-on experience in $technical_field and a strong background in $technical_skills, I am well-positioned to contribute to your technical team.
-
-Technical Highlights:
-• $technical_achievement_1
-• $technical_achievement_2  
-• $technical_achievement_3
-
-My experience with $technology_stack has prepared me to tackle the challenges mentioned in your job description, particularly $specific_challenge. At $previous_company, I $technical_project, resulting in $project_outcome.
-
-I am particularly interested in $company_name because of your work in $technical_area. Your commitment to $technical_value aligns with my professional values and career objectives in $career_goal.
-
-I would appreciate the opportunity to discuss how my technical expertise and problem-solving abilities can contribute to your team's continued success.
-
-Best regards,
-$full_name"""
+        self.tone_profiles = {
+            'professional': {
+                'greeting': 'Dear Hiring Manager',
+                'closing': 'Sincerely',
+                'language': 'formal',
+                'keywords': ['excellence', 'professional', 'qualified', 'expertise', 'proven track record']
+            },
+            'modern': {
+                'greeting': 'Hello',
+                'closing': 'Best regards',
+                'language': 'contemporary',
+                'keywords': ['innovative', 'dynamic', 'collaborative', 'impact', 'growth']
+            },
+            'enthusiastic': {
+                'greeting': 'Dear Hiring Team',
+                'closing': 'Warm regards',
+                'language': 'energetic',
+                'keywords': ['excited', 'passionate', 'thrilled', 'eager', 'motivated']
+            },
+            'technical': {
+                'greeting': 'Dear Hiring Committee',
+                'closing': 'Respectfully',
+                'language': 'precise',
+                'keywords': ['optimize', 'implement', 'develop', 'engineer', 'architect']
+            }
         }
-    
-    def generate_cover_letter(self, 
-                            user_data: Dict[str, Any], 
-                            vacancy_data: Dict[str, Any], 
-                            template_name: str = 'professional',
-                            custom_template: Optional[str] = None) -> str:
-        """
-        Generate a personalized cover letter based on user data and vacancy information.
         
-        Args:
-            user_data: Dictionary containing applicant information
-            vacancy_data: Dictionary containing job vacancy details
-            template_name: Name of predefined template ('professional', 'creative', 'technical')
-            custom_template: Optional custom template string with placeholders
-            
-        Returns:
-            Generated cover letter as string
-        """
+        self.industry_templates = {
+            'tech': {
+                'intro_phrases': [
+                    "With a strong background in {skills} and {experience}+ years of experience",
+                    "As an experienced {role} specializing in {skills}",
+                    "Bringing expertise in {skills} and a proven track record in"
+                ],
+                'value_props': [
+                    "developing scalable solutions that improve efficiency by 30%",
+                    "implementing cutting-edge technologies that drive business growth",
+                    "optimizing systems for maximum performance and reliability"
+                ]
+            },
+            'creative': {
+                'intro_phrases': [
+                    "With a creative approach to {skills} and {experience}+ years of experience",
+                    "As a passionate {role} with expertise in {skills}",
+                    "Combining artistic vision with technical skills in {skills}"
+                ],
+                'value_props': [
+                    "creating visually stunning designs that engage audiences",
+                    "developing compelling visual narratives that tell brand stories",
+                    "crafting innovative solutions that blend form and function"
+                ]
+            },
+            'business': {
+                'intro_phrases': [
+                    "With extensive experience in {skills} and {experience}+ years in the industry",
+                    "As a results-driven {role} specializing in {skills}",
+                    "Bringing strategic expertise in {skills} and a history of"
+                ],
+                'value_props': [
+                    "driving business growth through strategic initiatives",
+                    "optimizing processes to increase efficiency and reduce costs",
+                    "developing data-driven strategies that deliver measurable results"
+                ]
+            }
+        }
         
-        # Use custom template if provided, otherwise use predefined template
-        if custom_template:
-            template_str = custom_template
-        elif template_name in self.templates:
-            template_str = self.templates[template_name]
-        else:
-            raise ValueError(f"Template '{template_name}' not found. Available templates: {list(self.templates.keys())}")
-        
-        # Merge and process data
-        merged_data = self._merge_and_process_data(user_data, vacancy_data)
-        
-        # Create template and substitute values
-        template = Template(template_str)
-        
+        self.skill_impact_statements = {
+            'python': "developed Python applications that processed over 1M+ records daily",
+            'javascript': "built interactive web applications serving 10K+ monthly users",
+            'react': "created React components that improved user engagement by 40%",
+            'node.js': "developed Node.js APIs handling 50K+ requests per hour",
+            'aws': "implemented AWS solutions reducing infrastructure costs by 25%",
+            'sql': "optimized SQL queries improving database performance by 60%",
+            'docker': "containerized applications reducing deployment time by 70%",
+            'machine learning': "built ML models with 95% prediction accuracy",
+            'ui/ux design': "designed interfaces that increased user satisfaction by 35%",
+            'project management': "managed projects delivering 20% under budget"
+        }
+
+    def load_job_data(self, json_file_path: str) -> List[Dict]:
+        """Load job data from JSON file"""
         try:
-            cover_letter = template.substitute(merged_data)
-        except KeyError as e:
-            missing_key = str(e).strip("'")
-            raise ValueError(f"Missing required data field: {missing_key}")
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('jobs', [])
+        except Exception as e:
+            print(f"❌ Error loading job data: {e}")
+            return []
+
+    def analyze_job_description(self, job: Dict) -> Dict:
+        """Perform deep analysis of job description"""
+        description = job.get('description', '').lower()
+        title = job.get('title', '').lower()
+        skills = job.get('skills', '').lower()
         
-        return self._clean_output(cover_letter)
-    
-    def _merge_and_process_data(self, user_data: Dict[str, Any], vacancy_data: Dict[str, Any]) -> Dict[str, str]:
-        """Merge user data and vacancy data, applying smart defaults and processing."""
+        # Extract key requirements
+        requirements = self._extract_requirements(description)
         
-        # Start with user data
-        merged = user_data.copy()
+        # Identify key technologies
+        technologies = self._identify_technologies(description + ' ' + skills)
         
-        # Add vacancy data
-        merged.update(vacancy_data)
+        # Determine company culture clues
+        culture_indicators = self._analyze_company_culture(description)
         
-        # Apply smart defaults and processing
-        processed_data = {
-            # Basic user information
-            'full_name': merged.get('full_name', merged.get('first_name', '') + ' ' + merged.get('last_name', '')).strip(),
-            'email': merged.get('email', ''),
-            'phone': merged.get('phone', ''),
-            
-            # Professional information
-            'years_experience': str(merged.get('years_experience', merged.get('experience_years', 'several'))),
-            'field': merged.get('field', merged.get('industry', 'my field')),
-            'previous_position': merged.get('previous_position', merged.get('current_position', 'my previous role')),
-            'previous_company': merged.get('previous_company', merged.get('current_company', 'my previous company')),
-            
-            # Job-specific information
-            'position_title': merged.get('position_title', merged.get('job_title', 'this position')),
-            'company_name': merged.get('company_name', merged.get('employer', 'your company')),
-            'hiring_manager': self._format_hiring_manager(merged.get('hiring_manager')),
-            'job_source': merged.get('job_source', 'your website'),
-            
-            # Skills and achievements
-            'key_skills': merged.get('key_skills', merged.get('skills', 'relevant skills')),
-            'key_achievement': merged.get('key_achievement', 'delivering successful results'),
-            'major_accomplishment': merged.get('major_accomplishment', 'achieved significant results'),
-            
-            # Company-specific
-            'company_interest': merged.get('company_interest', "your company's innovative approach"),
-            'specific_interest': merged.get('specific_interest', 'your team\'s mission'),
-            'company_value': merged.get('company_value', 'innovation'),
-            'company_news': merged.get('company_news', 'recent developments'),
-            
-            # Technical fields
-            'technical_field': merged.get('technical_field', merged.get('field', 'technology')),
-            'technical_skills': merged.get('technical_skills', merged.get('key_skills', 'technical skills')),
-            'technology_stack': merged.get('technology_stack', 'relevant technologies'),
-            'technical_area': merged.get('technical_area', 'technology'),
-            'technical_value': merged.get('technical_value', 'technical excellence'),
-            
-            # Dynamic content
-            'industry': merged.get('industry', merged.get('field', 'this industry')),
-            'department': merged.get('department', 'your'),
-            'career_goal': merged.get('career_goal', 'professional development'),
-            'date': datetime.now().strftime('%B %d, %Y')
+        # Extract experience level
+        experience_level = self._determine_experience_level(description, title)
+        
+        return {
+            'requirements': requirements,
+            'technologies': technologies,
+            'culture_indicators': culture_indicators,
+            'experience_level': experience_level,
+            'key_phrases': self._extract_key_phrases(description),
+            'company_focus': self._identify_company_focus(description)
+        }
+
+    def _extract_requirements(self, description: str) -> List[str]:
+        """Extract specific requirements from job description"""
+        requirements = []
+        patterns = [
+            r'must have (.+?)(?:\.|,|$)',
+            r'required (.+?)(?:\.|,|$)',
+            r'looking for (.+?)(?:\.|,|$)',
+            r'qualifications?:?(.+?)(?:\.|,|$)',
+            r'experience with (.+?)(?:\.|,|$)',
+            r'knowledge of (.+?)(?:\.|,|$)',
+            r'ability to (.+?)(?:\.|,|$)'
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, description, re.IGNORECASE)
+            requirements.extend(matches)
+        
+        return requirements[:8]  # Return top 8 requirements
+
+    def _identify_technologies(self, text: str) -> List[str]:
+        """Identify technologies mentioned in the job description"""
+        tech_keywords = {
+            'programming': ['python', 'javascript', 'java', 'c#', 'c++', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin'],
+            'frameworks': ['react', 'angular', 'vue', 'django', 'flask', 'spring', 'laravel', 'express', 'asp.net'],
+            'databases': ['mysql', 'postgresql', 'mongodb', 'redis', 'oracle', 'sql server', 'dynamodb'],
+            'cloud': ['aws', 'azure', 'google cloud', 'docker', 'kubernetes', 'terraform', 'jenkins'],
+            'tools': ['git', 'jira', 'confluence', 'figma', 'photoshop', 'illustrator']
         }
         
-        # Handle technical achievements
-        for i in range(1, 4):
-            key = f'technical_achievement_{i}'
-            processed_data[key] = merged.get(key, f'Technical achievement {i}')
+        found_tech = []
+        for category, technologies in tech_keywords.items():
+            for tech in technologies:
+                if tech in text.lower():
+                    found_tech.append(tech)
         
-        # Handle missing fields with context-appropriate defaults
-        self._apply_contextual_defaults(processed_data, merged)
-        
-        # Ensure all fields exist as strings to prevent template errors
-        for key, value in processed_data.items():
-            if value is None:
-                processed_data[key] = ''
-            else:
-                processed_data[key] = str(value)
-        
-        return processed_data
-    
-    def _format_hiring_manager(self, hiring_manager: Optional[str]) -> str:
-        """Format hiring manager name or provide default."""
-        if not hiring_manager:
-            return "Hiring Manager"
-        
-        # If just a name is provided, add appropriate title
-        if hiring_manager and ',' not in hiring_manager and 'Dear' not in hiring_manager:
-            return f"Mr./Ms. {hiring_manager}"
-        
-        return hiring_manager
-    
-    def _apply_contextual_defaults(self, processed_data: Dict[str, str], original_data: Dict[str, Any]) -> None:
-        """Apply contextual defaults based on available information."""
-        
-        # Infer missing fields from available data
-        if 'required_skill' not in processed_data:
-            processed_data['required_skill'] = processed_data['key_skills'].split(',')[0].strip()
-        
-        if 'relevant_background' not in processed_data:
-            processed_data['relevant_background'] = processed_data['field']
-        
-        # Creative template specific fields
-        processed_data.setdefault('challenge_area', 'challenges')
-        processed_data.setdefault('skill_combination', 'technical and creative skills')
-        processed_data.setdefault('creative_achievement', 'exceeded expectations')
-        processed_data.setdefault('lesson_learned', 'collaboration drives innovation')
-        processed_data.setdefault('personal_connection', 'the opportunity to make an impact')
-        processed_data.setdefault('why_interested', 'it aligns with my professional goals')
-        processed_data.setdefault('expertise_area', processed_data['field'])
-        processed_data.setdefault('team_value', 'innovation and collaboration')
-        processed_data.setdefault('approach_area', processed_data['field'])
-        processed_data.setdefault('previous_responsibility', 'manage projects')
-        
-        # Technical template specific fields
-        processed_data.setdefault('specific_challenge', 'technical challenges mentioned')
-        processed_data.setdefault('technical_project', 'led a technical project')
-        processed_data.setdefault('project_outcome', 'improved system performance')
-    
-    def _clean_output(self, text: str) -> str:
-        """Clean up the generated cover letter."""
-        # Remove extra whitespace
-        text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
-        text = re.sub(r'[ \t]+', ' ', text)
-        
-        # Fix common formatting issues
-        text = text.replace(' ,', ',')
-        text = text.replace(' .', '.')
-        text = text.replace('  ', ' ')
-        
-        return text.strip()
-    
-    def add_custom_template(self, name: str, template: str) -> None:
-        """Add a new custom template to the generator."""
-        self.templates[name] = template
-    
-    def list_templates(self) -> list:
-        """Return list of available template names."""
-        return list(self.templates.keys())
-    
-    def get_template_placeholders(self, template_name: str) -> list:
-        """Get list of placeholders used in a specific template."""
-        if template_name not in self.templates:
-            raise ValueError(f"Template '{template_name}' not found")
-        
-        template_str = self.templates[template_name]
-        placeholders = re.findall(r'\$([a-zA-Z_][a-zA-Z0-9_]*)', template_str)
-        return list(set(placeholders))
-    @staticmethod
-    def export_cover_letter_to_pdf(content: str, filename="cover_letter.pdf"):
-        # Set up the canvas with A4 size and custom margins
-        c = canvas.Canvas(f'proposal/{filename}', pagesize=A4)
-        width, height = A4
+        return found_tech
 
-        # Define margins and boundary width
-        margin = 0.5 * inch
-        boundary_width = 5
+    def _analyze_company_culture(self, description: str) -> Dict:
+        """Analyze company culture from job description"""
+        culture_indicators = {
+            'collaborative': len(re.findall(r'team|collaborat|work together|partner', description, re.IGNORECASE)),
+            'innovative': len(re.findall(r'innovativ|creativ|disrupt|cutting.edge', description, re.IGNORECASE)),
+            'fast_paced': len(re.findall(r'fast.paced|dynamic|startup|agile', description, re.IGNORECASE)),
+            'structured': len(re.findall(r'process|methodolog|framework|structured', description, re.IGNORECASE))
+        }
+        
+        # Determine dominant culture
+        dominant_culture = max(culture_indicators, key=culture_indicators.get)
+        
+        return {
+            'indicators': culture_indicators,
+            'dominant': dominant_culture if culture_indicators[dominant_culture] > 0 else 'neutral'
+        }
 
-        # Draw boundaries
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(boundary_width)
-        c.line(margin, margin, margin, height - margin)
-        c.line(width - margin, margin, width - margin, height - margin)
+    def _determine_experience_level(self, description: str, title: str) -> str:
+        """Determine required experience level"""
+        junior_indicators = ['junior', 'entry.level', 'graduate', '0.2 years', '1.3 years']
+        senior_indicators = ['senior', 'lead', 'principal', '5\+ years', '7\+ years', '10\+ years']
+        
+        text = description + ' ' + title
+        
+        if any(indicator in text for indicator in senior_indicators):
+            return 'senior'
+        elif any(indicator in text for indicator in junior_indicators):
+            return 'junior'
+        else:
+            return 'mid'
 
-        # Calculate the text area's width
-        text_area_width = width - (2 * margin) - (2 * boundary_width) - 20
+    def _extract_key_phrases(self, description: str) -> List[str]:
+        """Extract key phrases that indicate company priorities"""
+        key_phrases = []
+        priority_indicators = [
+            r'critical to', r'essential for', r'key to', r'focus on', 
+            r'emphasis on', r'priority is', r'looking for.*who can'
+        ]
+        
+        for pattern in priority_indicators:
+            matches = re.findall(pattern, description, re.IGNORECASE)
+            key_phrases.extend(matches)
+        
+        return key_phrases
 
-        # Define a paragraph style for the content
-        content_style = ParagraphStyle(
-            'Normal',
-            fontName='Helvetica',
-            fontSize=12,
-            leading=14,
-            leftIndent=10,
-            rightIndent=10,
+    def _identify_company_focus(self, description: str) -> str:
+        """Identify company's main focus area"""
+        focuses = {
+            'product': ['product', 'user experience', 'ux', 'customer'],
+            'technology': ['technology', 'technical', 'engineering', 'development'],
+            'business': ['business', 'revenue', 'growth', 'market'],
+            'innovation': ['innovation', 'research', 'development', 'r&d']
+        }
+        
+        focus_scores = {}
+        for focus, keywords in focuses.items():
+            score = sum(1 for keyword in keywords if keyword in description.lower())
+            focus_scores[focus] = score
+        
+        return max(focus_scores, key=focus_scores.get) if focus_scores else 'general'
+
+    def generate_cover_letter(self, job: Dict, candidate_profile: Dict, tone: str = 'professional') -> Dict:
+        """Generate a highly customized cover letter"""
+        analysis = self.analyze_job_description(job)
+        
+        # Select appropriate template based on industry
+        industry = self._determine_industry(job.get('title', ''), job.get('description', ''))
+        template = self.industry_templates.get(industry, self.industry_templates['tech'])
+        
+        # Generate sections
+        sections = {
+            'header': self._generate_header(job, candidate_profile),
+            'greeting': self._generate_greeting(job, tone),
+            'introduction': self._generate_introduction(job, candidate_profile, analysis, template),
+            'body': self._generate_body(job, candidate_profile, analysis),
+            'closing': self._generate_closing(job, candidate_profile, tone),
+            'signature': self._generate_signature(candidate_profile)
+        }
+        
+        # Combine into full letter
+        full_letter = self._combine_sections(sections)
+        
+        return {
+            'job_title': job.get('title', ''),
+            'company': job.get('company', ''),
+            'cover_letter': full_letter,
+            'analysis': analysis,
+            'sections': sections,
+            'tone': tone,
+            'industry': industry
+        }
+
+    def _determine_industry(self, title: str, description: str) -> str:
+        """Determine the industry based on job title and description"""
+        text = (title + ' ' + description).lower()
+        
+        if any(word in text for word in ['design', 'creative', 'art', 'ui/ux', 'graphic']):
+            return 'creative'
+        elif any(word in text for word in ['business', 'manager', 'strategy', 'marketing', 'sales']):
+            return 'business'
+        else:
+            return 'tech'
+
+    def _generate_header(self, job: Dict, candidate: Dict) -> str:
+        """Generate letter header"""
+        header = f"{candidate.get('full_name', 'Your Name')}\n"
+        header += f"{candidate.get('address', 'Your Address')}\n"
+        header += f"{candidate.get('phone', 'Your Phone')} | {candidate.get('email', 'your.email@example.com')}\n"
+        if candidate.get('linkedin'):
+            header += f"LinkedIn: {candidate.get('linkedin')}\n"
+        if candidate.get('portfolio'):
+            header += f"Portfolio: {candidate.get('portfolio')}\n"
+        
+        header += f"\n{datetime.now().strftime('%B %d, %Y')}\n\n"
+        header += f"{job.get('company', 'Hiring Manager')}\n"
+        
+        # Try to extract company address from job data
+        if job.get('location'):
+            header += f"{job.get('location')}\n"
+        
+        return header
+
+    def _generate_greeting(self, job: Dict, tone: str) -> str:
+        """Generate personalized greeting"""
+        tone_profile = self.tone_profiles.get(tone, self.tone_profiles['professional'])
+        company = job.get('company', 'Hiring Manager')
+        
+        # Try to extract hiring manager name if possible
+        description = job.get('description', '')
+        manager_patterns = [
+            r'report to (.+?)(?:\s|$)',
+            r'working with (.+?)(?:\s|$)',
+            r'contact (.+?)(?:\s|$)'
+        ]
+        
+        for pattern in manager_patterns:
+            match = re.search(pattern, description, re.IGNORECASE)
+            if match:
+                manager_name = match.group(1).title()
+                return f"{tone_profile['greeting']} {manager_name},"
+        
+        return f"{tone_profile['greeting']} at {company},"
+
+    def _generate_introduction(self, job: Dict, candidate: Dict, analysis: Dict, template: Dict) -> str:
+        """Generate compelling introduction"""
+        experience = candidate.get('experience_years', 3)
+        skills = ', '.join(analysis['technologies'][:3]) if analysis['technologies'] else candidate.get('primary_skills', 'relevant technologies')
+        role = job.get('title', 'the position').split()[0] if job.get('title') else 'this role'
+        
+        # Select random intro phrase from template
+        import random
+        intro_phrase = random.choice(template['intro_phrases'])
+        value_prop = random.choice(template['value_props'])
+        
+        intro = intro_phrase.format(
+            skills=skills,
+            experience=experience,
+            role=role
+        )
+        
+        intro += f", I was immediately drawn to the {job.get('title', 'position')} at {job.get('company', 'your company')}. "
+        intro += f"My background in {value_prop} aligns perfectly with your requirements."
+        
+        return intro
+
+    def _generate_body(self, job: Dict, candidate: Dict, analysis: Dict) -> str:
+        """Generate the main body of the cover letter"""
+        body = ""
+        
+        # Address key requirements
+        if analysis['requirements']:
+            body += "I was particularly interested to see your emphasis on:\n\n"
+            for i, requirement in enumerate(analysis['requirements'][:3], 1):
+                # Match requirement with candidate's experience
+                matched_experience = self._match_requirement_to_experience(requirement, candidate)
+                body += f"• {requirement.capitalize()}: {matched_experience}\n"
+            
+            body += "\n"
+        
+        # Highlight relevant achievements
+        body += self._highlight_achievements(job, candidate, analysis)
+        
+        # Show cultural alignment
+        body += self._show_cultural_alignment(analysis['culture_indicators'])
+        
+        return body
+
+    def _match_requirement_to_experience(self, requirement: str, candidate: Dict) -> str:
+        """Match job requirement to candidate's experience"""
+        requirement_lower = requirement.lower()
+        
+        # Check for specific skills in requirement
+        for skill, impact in self.skill_impact_statements.items():
+            if skill in requirement_lower:
+                return impact
+        
+        # Generic response based on requirement type
+        if any(word in requirement_lower for word in ['lead', 'manage', 'team']):
+            return "Successfully led cross-functional teams delivering projects 20% ahead of schedule"
+        elif any(word in requirement_lower for word in ['develop', 'build', 'create']):
+            return "Developed multiple production-ready applications serving thousands of users"
+        elif any(word in requirement_lower for word in ['optimize', 'improve', 'enhance']):
+            return "Implemented optimizations that improved system performance by 40%"
+        else:
+            return "Gained extensive experience in this area through multiple successful projects"
+
+    def _highlight_achievements(self, job: Dict, candidate: Dict, analysis: Dict) -> str:
+        """Highlight relevant achievements"""
+        achievements = ""
+        
+        # Select achievements based on job requirements
+        relevant_skills = analysis['technologies'][:2] if analysis['technologies'] else ['technical solutions']
+        
+        achievements += "In my previous roles, I have successfully:\n\n"
+        
+        # Generate 2-3 relevant achievements
+        achievement_templates = [
+            "Implemented {technology} solutions that {impact}",
+            "Led the development of {technology} applications resulting in {impact}",
+            "Optimized {technology} processes achieving {impact}"
+        ]
+        
+        impacts = [
+            "increased efficiency by 35%",
+            "reduced costs by 25%",
+            "improved performance by 50%",
+            "enhanced user satisfaction by 40%"
+        ]
+        
+        import random
+        for i in range(min(3, len(relevant_skills))):
+            tech = relevant_skills[i] if i < len(relevant_skills) else 'key'
+            achievement = random.choice(achievement_templates).format(
+                technology=tech,
+                impact=random.choice(impacts)
+            )
+            achievements += f"• {achievement}\n"
+        
+        achievements += "\n"
+        return achievements
+
+    def _show_cultural_alignment(self, culture_indicators: Dict) -> str:
+        """Show alignment with company culture"""
+        culture = culture_indicators['dominant']
+        
+        culture_statements = {
+            'collaborative': "I thrive in collaborative environments and believe that the best results come from working closely with cross-functional teams to solve complex problems together.",
+            'innovative': "I'm passionate about innovation and constantly seek new ways to push boundaries and create cutting-edge solutions that drive meaningful impact.",
+            'fast_paced': "I excel in fast-paced environments and am adept at adapting quickly to changing priorities while maintaining high-quality deliverables.",
+            'structured': "I appreciate well-defined processes and methodologies that ensure consistent, high-quality outcomes while allowing for continuous improvement.",
+            'neutral': "I'm adaptable and thrive in various work environments, always focusing on delivering exceptional results and contributing positively to team dynamics."
+        }
+        
+        return culture_statements.get(culture, culture_statements['neutral']) + "\n\n"
+
+    def _generate_closing(self, job: Dict, candidate: Dict, tone: str) -> str:
+        """Generate closing paragraph"""
+        tone_profile = self.tone_profiles.get(tone, self.tone_profiles['professional'])
+        
+        closing = f"I am particularly excited about the opportunity at {job.get('company', 'your company')} because "
+        
+        # Customize based on company focus
+        analysis = self.analyze_job_description(job)
+        focus = analysis.get('company_focus', 'general')
+        
+        focus_reasons = {
+            'product': "of your focus on creating exceptional user experiences and innovative products.",
+            'technology': "of your commitment to technical excellence and cutting-edge solutions.",
+            'business': "of your strategic approach to driving business growth and market impact.",
+            'innovation': "of your dedication to innovation and pushing industry boundaries.",
+            'general': "it represents an excellent opportunity to apply my skills and experience to meaningful challenges."
+        }
+        
+        closing += focus_reasons.get(focus, focus_reasons['general'])
+        closing += f"\n\n{tone_profile['closing']},\n\n"
+        
+        return closing
+
+    def _generate_signature(self, candidate: Dict) -> str:
+        """Generate signature section"""
+        return candidate.get('full_name', 'Your Name')
+
+    def _combine_sections(self, sections: Dict) -> str:
+        """Combine all sections into a complete cover letter"""
+        return (
+            f"{sections['header']}"
+            f"{sections['greeting']}\n\n"
+            f"{sections['introduction']}\n\n"
+            f"{sections['body']}"
+            f"{sections['closing']}"
+            f"{sections['signature']}"
         )
 
-        # Create a Paragraph object from the content
-        p = Paragraph(content.replace('\n', '<br/>'), content_style)
-
-        # Use the drawOn method to place the paragraph within the canvas
-        # The x and y coordinates here define the lower-left corner of the drawing area for the paragraph.
-        p.wrapOn(c, text_area_width, height)
-        p.drawOn(c, margin + boundary_width, height - margin - p.height)
+    def save_cover_letters(self, cover_letters: List[Dict], output_dir: str = 'cover_letters'):
+        """Save cover letters to text files"""
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         
-        # Save the PDF
-        c.save()
-        print(f"Cover letter created as '{filename}'")
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        for i, letter in enumerate(cover_letters):
+            company = re.sub(r'[^\w\s-]', '', letter.get('company', 'Unknown'))[:30]
+            job_title = re.sub(r'[^\w\s-]', '', letter.get('job_title', 'Unknown'))[:50]
+            filename = f"cover_letter_{company}_{job_title}_{timestamp}_{i+1}.txt"
+            filepath = os.path.join(output_dir, filename)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(letter['cover_letter'])
+        
+        print(f"✅ Generated {len(cover_letters)} text cover letters in '{output_dir}' directory")
 
+    def save_cover_letters_to_rtf(self, cover_letters: List[Dict], output_dir: str = 'cover_letters_rtf'):
+        """Save cover letters to RTF files"""
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        for i, letter in enumerate(cover_letters):
+            company = re.sub(r'[^\w\s-]', '', letter.get('company', 'Unknown'))[:30]
+            job_title = re.sub(r'[^\w\s-]', '', letter.get('job_title', 'Unknown'))[:50]
+            filename = f"cover_letter_{company}_{job_title}_{timestamp}_{i+1}.rtf"
+            filepath = os.path.join(output_dir, filename)
+            
+            rtf_content = self._create_rtf_cover_letter(letter)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(rtf_content)
+        
+        print(f"✅ Generated {len(cover_letters)} RTF cover letters in '{output_dir}' directory")
 
-# Example usage and demonstration
-def demo_cover_letter_generator():
-    """Demonstrate the cover letter generator with sample data."""
+    def _create_rtf_cover_letter(self, cover_letter: Dict) -> str:
+        """Create RTF formatted cover letter"""
+        letter_content = cover_letter['cover_letter']
+        
+        # Convert plain text to RTF format
+        rtf_content = r"""{\rtf1\ansi\deff0 {\fonttbl {\f0 Times New Roman;}}
+\f0\fs24 """
+        
+        # Split content into lines and convert
+        lines = letter_content.split('\n')
+        for line in lines:
+            if line.strip() == '':
+                rtf_content += '\\par\n'
+            else:
+                # Handle bold text (company names, job titles)
+                bold_patterns = [
+                    cover_letter.get('company', ''),
+                    cover_letter.get('job_title', '')
+                ]
+                
+                formatted_line = line
+                for pattern in bold_patterns:
+                    if pattern and pattern in line:
+                        formatted_line = formatted_line.replace(pattern, f'\\b {pattern}\\b0')
+                
+                rtf_content += formatted_line + '\\par\n'
+        
+        rtf_content += '}'
+        return rtf_content
+
+    def generate_cover_letter_batch(self, jobs: List[Dict], candidate_profile: Dict, tone: str = 'professional') -> List[Dict]:
+        """Generate cover letters for multiple jobs"""
+        cover_letters = []
+        
+        for i, job in enumerate(jobs, 1):
+            print(f"📝 Generating cover letter {i}/{len(jobs)}: {job.get('title', 'Unknown')[:50]}...")
+            cover_letter = self.generate_cover_letter(job, candidate_profile, tone)
+            cover_letters.append(cover_letter)
+        
+        return cover_letters
+
+def main():
+    """Main function to demonstrate cover letter generation"""
+    print("🎯 Enhanced Cover Letter Generator")
+    print("=" * 50)
     
+    # Initialize generator
     generator = CoverLetterGenerator()
     
-    # Sample user data
-    user_data = {
-        'full_name': 'Jane Smith',
-        'email': 'jane.smith@email.com',
-        'phone': '+1-555-0123',
-        'years_experience': 5,
-        'field': 'software development',
-        'previous_position': 'Senior Developer',
-        'previous_company': 'Tech Innovations Inc.',
-        'key_skills': 'Python, JavaScript, React, API development',
-        'key_achievement': 'leading successful product launches',
-        'major_accomplishment': 'reduced system response time by 40%',
-        'industry': 'technology'
-    }
+    # Load job data
+    json_file = input("Enter path to jobs JSON file (default: compiled_jobs.json): ").strip() or "compiled_jobs.json"
     
-    # Sample vacancy data
-    vacancy_data = {
-        'position_title': 'Full Stack Developer',
-        'company_name': 'Future Systems Ltd.',
-        'hiring_manager': 'Sarah Johnson',
-        'job_source': 'LinkedIn',
-        'required_skill': 'Python',
-        'company_interest': "your company's commitment to innovative solutions",
-        'specific_interest': 'your agile development practices',
-        'department': 'engineering'
-    }
-    
-    # Generate cover letters with different templates
-    templates_to_demo = ['professional', 'creative', 'technical']
-    for template in templates_to_demo:
-        print(f"\n{'='*50}")
-        print(f"COVER LETTER - {template.upper()} TEMPLATE")
-        print(f"{'='*50}")
+    try:
+        jobs = generator.load_job_data(json_file)
+        if not jobs:
+            print("❌ No jobs found in the specified file.")
+            return
         
-        try:
-            cover_letter = generator.generate_cover_letter(
-                user_data=user_data,
-                vacancy_data=vacancy_data,
-                template_name=template
-            )
-            
-            print(cover_letter)
-            generator.export_cover_letter_to_pdf(cover_letter, f"cover_letter_{template}.pdf")
-        except Exception as e:
-            print(f"Error generating {template} template: {e}")
+        print(f"✅ Loaded {len(jobs)} jobs from {json_file}")
+    except Exception as e:
+        print(f"❌ Error loading jobs: {e}")
+        return
     
-    # Show template placeholders
-    print(f"\n{'='*50}")
-    print("TEMPLATE PLACEHOLDERS")
-    print(f"{'='*50}")
+    # Candidate profile
+    print("\n📝 Candidate Profile Setup:")
+    candidate_profile = {
+        'full_name': input("Full Name: ").strip() or "John Doe",
+        'email': input("Email: ").strip() or "john.doe@example.com",
+        'phone': input("Phone: ").strip() or "+1-234-567-8900",
+        'address': input("Address: ").strip() or "123 Main Street, City, State 12345",
+        'linkedin': input("LinkedIn (optional): ").strip(),
+        'portfolio': input("Portfolio (optional): ").strip(),
+        'experience_years': int(input("Years of experience (default 3): ").strip() or "3"),
+        'primary_skills': input("Primary skills (comma-separated): ").strip() or "Python, JavaScript, React"
+    }
     
-    for template in generator.list_templates():
-        placeholders = generator.get_template_placeholders(template)
-        print(f"\n{template.upper()} template placeholders:")
-        for placeholder in sorted(placeholders):
-            print(f"  - {placeholder}")
-
+    # Tone selection
+    print("\n🎭 Select Tone:")
+    tones = list(generator.tone_profiles.keys())
+    for i, tone in enumerate(tones, 1):
+        print(f"{i}. {tone.title()}")
+    
+    tone_choice = input(f"Choose tone (1-{len(tones)}, default 1): ").strip()
+    try:
+        selected_tone = tones[int(tone_choice) - 1] if tone_choice else 'professional'
+    except (ValueError, IndexError):
+        selected_tone = 'professional'
+    
+    print(f"Selected tone: {selected_tone}")
+    
+    # Job selection
+    print(f"\n🔍 Select Jobs for Cover Letters:")
+    print(f"Found {len(jobs)} jobs. How many do you want to process?")
+    try:
+        num_jobs = int(input(f"Number of jobs (1-{len(jobs)}, default {min(5, len(jobs))}): ").strip() or min(5, len(jobs)))
+        num_jobs = max(1, min(num_jobs, len(jobs)))
+    except ValueError:
+        num_jobs = min(5, len(jobs))
+    
+    selected_jobs = jobs[:num_jobs]
+    
+    # Generate cover letters
+    print(f"\n🎯 Generating {len(selected_jobs)} cover letters...")
+    cover_letters = generator.generate_cover_letter_batch(selected_jobs, candidate_profile, selected_tone)
+    
+    # Save in multiple formats
+    generator.save_cover_letters(cover_letters)
+    generator.save_cover_letters_to_rtf(cover_letters)
+    
+    print(f"\n✅ Successfully generated {len(cover_letters)} cover letters!")
+    print("📁 Check the 'cover_letters' and 'cover_letters_rtf' folders for your files.")
+    
+    # Display first cover letter as preview
+    if cover_letters:
+        print("\n" + "="*60)
+        print("PREVIEW OF FIRST COVER LETTER")
+        print("="*60)
+        print(cover_letters[0]['cover_letter'])
+        print("="*60)
 
 if __name__ == "__main__":
-    # Run the demo
-    demo_cover_letter_generator()
-    
-    # Example of creating a custom template
-    generator = CoverLetterGenerator()
-    
-    custom_template = """Dear $hiring_manager,
-
-I am excited to apply for the $position_title role at $company_name. 
-My $years_experience years in $field make me an ideal candidate.
-
-Key qualifications:
-- $key_achievement
-- $major_accomplishment
-- Expertise in $key_skills
-
-I look forward to contributing to $company_name's success.
-
-Best regards,
-$full_name"""
-    
-    generator.add_custom_template('brief', custom_template)
-    print(f"\nAvailable templates: {generator.list_templates()}")
+    main()
